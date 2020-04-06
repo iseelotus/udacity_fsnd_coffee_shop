@@ -28,6 +28,7 @@ db_drop_and_create_all()
 def db_drop_and_create_all():
     db.drop_all()
     db.create_all()
+    print("db_drop_and_creat_all finished")
 
 '''
 Drink
