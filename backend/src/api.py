@@ -21,40 +21,42 @@ CORS(app)
 @app.route('/drinks', methods=['GET'])
 def get_drinks():
     drinks = [drink.short() for drink in Drink.query.order_by(Drink.id).all()]
-
     return jsonify({
-        'success': True,
-        'drinks': drinks
+        "success": True,
+        "drinks": drinks
     })
 
 
 @app.route('/drinks-detail', methods=['GET'])
 @requires_auth('get:drinks-detail')
-def get_drinks_detail():
+def get_drinks_detail(token):
     drinks = [drink.long() for drink in Drink.query.order_by(Drink.id).all()]
 
     return jsonify({
-        'success': True,
-        'drinks': drinks
+        "success": True,
+        "drinks": drinks
     })
 
 
 @app.route('/drinks', methods=['POST'])
 @requires_auth('post:drinks')
-def create_drink():
+def create_drink(token):
     body = request.get_json()
-    drink = Drink(title=body['title'], recipe=body['recipe'])
-    drink.insert()
+    title = body['title']
+    recipe = body['recipe']
+    if type(recipe) is dict:
+        recipe = [recipe]
+
+    new_drink = Drink(title=title, recipe=json.dumps(recipe))
+
+    new_drink.insert()
     return jsonify({
         'success': True,
-        'drinks': drink
+        'drinks': Drink.long(new_drink)
     })
 
 
 '''
-@TODO implement endpoint
-    PATCH /drinks/<id>
-        where <id> is the existing model id
         it should respond with a 404 error if <id> is not found
         it should update the corresponding row for <id>
         it should require the 'patch:drinks' permission
@@ -64,29 +66,28 @@ def create_drink():
 '''
 @app.route('/drinks/<id>', methods=['PATCH'])
 @requires_auth('patch:drinks')
-def edit_drink(id):
+def edit_drink(token, id):
     body = request.get_json()
     drink = Drink.query.get(id)
     if not drink:
-        abort(404, {'message': f'Drink with id {id} not found'})
+        abort(404, {"message": f"Drink with id {id} not found"})
     else:
-        new_title = body.get('titel', None)
+        new_title = body.get('title', None)
         new_recipe = body.get('recipe', None)
         if new_title:
             drink.title = new_title
         if new_recipe:
+            if type(new_recipe) is dict:
+                new_recipe = [new_recipe]
             drink.recipe = new_recipe
         drink.update()
         return jsonify({
-            'success': True,
-            'drinks': [drink.long()]
+            "success": True,
+            "drinks": [drink.long()]
         })
 
 
 '''
-@TODO implement endpoint
-    DELETE /drinks/<id>
-        where <id> is the existing model id
         it should respond with a 404 error if <id> is not found
         it should delete the corresponding row for <id>
         it should require the 'delete:drinks' permission
@@ -95,16 +96,16 @@ def edit_drink(id):
 '''
 @app.route('/drinks/<id>', methods=['DELETE'])
 @requires_auth('delete:drinks')
-def delete_drink(id):
+def delete_drink(token, id):
     body = request.get_json()
     drink = Drink.query.get(id)
     if not drink:
-        abort(404, {'message': f'Drink with id {id} not found'})
+        abort(404, {"message": f"Drink with id {id} not found"})
     else:
         drink.delete()
         return jsonify({
-            'success': True,
-            'delete': id
+            "success": True,
+            "delete": id
         })
 
 
@@ -121,39 +122,24 @@ def unprocessable(error):
     }), 422
 
 
-'''
-@TODO implement error handlers using the @app.errorhandler(error) decorator
-    each error handler should return (with approprate messages):
-             jsonify({
-                    "success": False, 
-                    "error": 404,
-                    "message": "resource not found"
-                    }), 404
-
-'''
 @app.errorhandler(404)
 def bad_request(error):
     return jsonify({
-        'success': False,
-        'error': 404,
-        'message': 'resource not found'
+        "success": False,
+        "error": 404,
+        "message": "resource not found"
     }), 404
 
 
-'''
-@TODO implement error handler for 404
-    error handler should conform to general task above 
-'''
-
-
-'''
-@TODO implement error handler for AuthError
-    error handler should conform to general task above 
-'''
 @app.errorhandler(401)
 def bad_request(error):
     return jsonify({
-        'success': False,
-        'error': 401,
-        'message': 'Not authorized'
+        "success": False,
+        "error": 401,
+        "message": "Not authorized"
     }), 401
+
+
+@app.errorhandler(AuthError)
+def auth_error(e):
+    return jsonify(e.error), e.status_code
